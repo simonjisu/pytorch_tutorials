@@ -15,4 +15,4 @@ pytorch 0.4.0
 
 |Date|contents|notebook|blog article|
 |-|-|-|-|
-|180705|PackedSequence ojbect tutorial|[notebook](https://nbviewer.jupyter.org/github/simonjisu/pytorch_tutorials/blob/master/PackedSequence/PackedSequence_Tutorial.ipynb)|[blog](https://simonjisu.github.io/datascience/2018/07/05/packedsequence.html)|
+|180705|PackedSequence object tutorial|[notebook](https://nbviewer.jupyter.org/github/simonjisu/pytorch_tutorials/blob/master/PackedSequence/PackedSequence_Tutorial.ipynb)|[blog](https://simonjisu.github.io/datascience/2018/07/05/packedsequence.html)|
