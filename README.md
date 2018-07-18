@@ -1,4 +1,4 @@
-# Pytorch Tutorial
+# Pytorch Tutorial For NLP
 
 Something useful tutorial in pytorch
 
