@@ -3,17 +3,34 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import numpy as np
-import config
+import pandas as pd
 
 from torchtext.data import Field, BucketIterator, TabularDataset
 from selfattention import SelfAttentionGRU
+
+def preprocessing(df, save_path, split_rt=0.0, valid_path=None):
+    df.comment_text = df.comment_text.replace('\n', '', regex=True)
+    df['targets'] = df[df.iloc[:, 2:].columns].astype(str).apply(lambda x: ','.join(x), axis=1)
+    df = df[['comment_text', 'targets']]
+    if split_rt > 0.0:
+        split_idx = int(len(df) * split_rt)
+        df = df.sample(frac=1)
+        train = df.iloc[:split_idx, :]
+        valid = df.iloc[split_idx:, :]
+        train.to_csv(save_path, index=False, header=False, sep='\t')
+        valid.to_csv(valid_path, index=False, header=False, sep='\t')
+        print('Preprocess complete!')
+    else:
+        df.to_csv(save_path, index=False, header=False, sep='\t')
+    return df
+
 
 def import_data(config):
     COMMENT = Field(lower=True, include_lengths=True, batch_first=True)
     LABEL = Field(sequential=False, use_vocab=False, preprocessing=lambda x: [int(t) for t in x.split(',')])
 
     train, test = TabularDataset.splits(path=config.PATH, 
-                                        train='train_data.tsv', test='test_data.tsv',
+                                        train='train_data.tsv', test='valid_data.tsv',
                                         fields=[('cmt', COMMENT), ('lbl', LABEL)], format='tsv')
     
     COMMENT.build_vocab(train.cmt, min_freq=config.MIN_FREQ)

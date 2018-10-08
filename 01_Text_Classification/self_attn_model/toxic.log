@@ -1,16 +1,17 @@
+Preprocess complete!
 Data imported ...
 Iteration build ...
 Model build ...
 Start Training ...
 ----------------------------------------
-[1/10] train loss: 0.4722, valid loss: 0.4653, valid acc: 0.8856 saved: True
-[2/10] train loss: 0.3464, valid loss: 0.4167, valid acc: 0.8962 saved: True
-[3/10] train loss: 0.3157, valid loss: 0.4028, valid acc: 0.8967 saved: True
-[4/10] train loss: 0.3022, valid loss: 0.3976, valid acc: 0.9012 saved: True
-[5/10] train loss: 0.2886, valid loss: 0.3811, valid acc: 0.9012 saved: False
-[6/10] train loss: 0.2635, valid loss: 0.3698, valid acc: 0.8981 saved: False
-[7/10] train loss: 0.2312, valid loss: 0.3661, valid acc: 0.8965 saved: False
-[8/10] train loss: 0.2121, valid loss: 0.3641, valid acc: 0.8923 saved: False
-[9/10] train loss: 0.1981, valid loss: 0.3639, valid acc: 0.8970 saved: False
-[10/10] train loss: 0.1946, valid loss: 0.3664, valid acc: 0.8915 saved: False
-Training time: 3812.2 s
+[1/10] train loss: 0.9939, valid loss: 0.6495, valid acc: 0.8924 saved: True
+[2/10] train loss: 0.5369, valid loss: 0.4465, valid acc: 0.8990 saved: True
+[3/10] train loss: 0.4267, valid loss: 0.4359, valid acc: 0.8633 saved: False
+[4/10] train loss: 0.3967, valid loss: 0.4135, valid acc: 0.8777 saved: False
+[5/10] train loss: 0.3657, valid loss: 0.3996, valid acc: 0.8903 saved: False
+[6/10] train loss: 0.3061, valid loss: 0.3854, valid acc: 0.8986 saved: False
+[7/10] train loss: 0.2167, valid loss: 0.3807, valid acc: 0.8917 saved: False
+[8/10] train loss: 0.1606, valid loss: 0.3779, valid acc: 0.8917 saved: False
+[9/10] train loss: 0.1326, valid loss: 0.3787, valid acc: 0.8830 saved: False
+[10/10] train loss: 0.1119, valid loss: 0.3798, valid acc: 0.8806 saved: False
+Training time: 594.7 s

@@ -1,6 +1,7 @@
 import torch
-
+TRAIN_PATH = 'train.csv'
 PATH = '../../data/toxic_comment/'
+SPLIT=0.05
 SAVE_PATH = '../../data/toxic_comment/pretrained_models/toxic.pt'
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 BATCH = 32
