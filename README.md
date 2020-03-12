@@ -22,3 +22,4 @@ torchtext 0.3.0
 |180828| Backpropagation in Affine(Linear) Layer using math | [notebook](https://nbviewer.jupyter.org/github/simonjisu/pytorch_tutorials/blob/master/00_Basic_Utils/04_Backpropagation_Matrix_diff.ipynb) | not yet |
 |190825| Fold&Unfold | [notebook](https://nbviewer.jupyter.org/github/simonjisu/pytorch_tutorials/blob/master/02_VISION/01_Fold_and_Unfold.ipynb) | [blog](https://www.notion.so/simonjisu/PyTorch-Fold-Unfold-e197f4094e31461384975361d9eb941f) |
 |191027| Conv2d&ConvTranspose2d | [notebook](https://nbviewer.jupyter.org/github/simonjisu/pytorch_tutorials/blob/master/02_VISION/02_Conv2d_and_ConvTranspose2d.ipynb) | [blog](https://simonjisu.github.io/datascience/2019/10/27/convtranspose2d.html) |
+|200312| DeepInsideCNN | [notebook](https://nbviewer.jupyter.org/github/simonjisu/pytorch_tutorials/blob/master/02_VISION/03_deep_inside_cnn.ipynb) | [blog](https://simonjisu.github.io/paper/2020/03/12/deepinsidecnn.html) |
