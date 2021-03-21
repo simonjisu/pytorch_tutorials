@@ -1,24 +1,8 @@
 from pathlib import Path
 import torch
-from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-import torchmetrics
 
-from transformers import (
-    ElectraForQuestionAnswering, 
-    ElectraConfig, 
-    ElectraTokenizer,
-    AdamW,
-    squad_convert_examples_to_features,
-    get_linear_schedule_with_warmup
-)
-
-from transformers.data.processors.squad import SquadResult, SquadV2Processor
-from transformers.data.metrics.squad_metrics import (
-    compute_predictions_logits,
-    squad_evaluate
-)
-from .AIHubQA_model import Model
+from QAmodel import Model
 
 def create_args():
     train_file = "ko_nia_normal_squad_all.json"
@@ -67,12 +51,12 @@ def create_args():
         "train_batch_size": 8,
         "eval_batch_size": 8,
         "learning_rate": 5e-5,
-        "output_prediction_file": "predictions_{}.json",
-        "output_nbest_file": "nbest_predictions_{}.json",
-        "output_null_log_odds_file": "null_odds_{}.json",
+        "output_prediction_file": "predictions/predictions_{}.json",
+        "output_nbest_file": "nbest_predictions/nbest_predictions_{}.json",
+        "output_null_log_odds_file": "null_odds/null_odds_{}.json",
     }
 
-return args_dict
+    return args_dict
 
 def main(args_dict):
     print("[INFO] Using PyTorch Ver", torch.__version__)
@@ -89,6 +73,7 @@ def main(args_dict):
     print("[INFO] Start FineTuning")
     trainer = pl.Trainer(
         callbacks=[checkpoint_callback],
+        default_root_dir=args_dict["ckpt_path"],
         max_epochs=args_dict["num_train_epochs"],
         deterministic=torch.cuda.is_available(),
         gpus=-1 if torch.cuda.is_available() else None,

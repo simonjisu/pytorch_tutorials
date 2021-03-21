@@ -1,3 +1,22 @@
+import torch
+import pytorch_lightning as pl
+
+from torch.utils.data import DataLoader
+from transformers import (
+    ElectraForQuestionAnswering, 
+    ElectraConfig, 
+    ElectraTokenizer,
+    AdamW,
+    squad_convert_examples_to_features,
+    get_linear_schedule_with_warmup
+)
+
+from transformers.data.processors.squad import SquadResult, SquadV2Processor
+from transformers.data.metrics.squad_metrics import (
+    compute_predictions_logits,
+    squad_evaluate
+)
+
 class Model(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
