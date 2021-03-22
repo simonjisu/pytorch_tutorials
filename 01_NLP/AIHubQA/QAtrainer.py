@@ -5,22 +5,24 @@ import pytorch_lightning as pl
 from QAmodel import Model
 
 def create_args():
-    train_file = "ko_nia_normal_squad_all.json"
-    val_file = "ko_nia_clue0529_squad_all.json"
+    rebuild = False
+    train_file = "train*.json"
+    val_file = "val*.json"
 
-    repo_path = Path().absolute().parent
+    repo_path = Path().absolute()
     data_path = repo_path.parent / "data" / "AIhub" / "QA"
     ckpt_path = repo_path.parent / "ckpt"
     if not ckpt_path.exists():
         ckpt_path.mkdir()
     else:
-        for x in ckpt_path.glob("*"):
-            if x.is_dir():
-                x.rmdir()
-            else:
-                x.unlink()
-        ckpt_path.rmdir()
-        ckpt_path.mkdir()
+        if rebuild:
+            for x in ckpt_path.glob("*"):
+                if x.is_dir():
+                    x.rmdir()
+                else:
+                    x.unlink()
+            ckpt_path.rmdir()
+            ckpt_path.mkdir()
 
     args_dict = {
         "task": "AIHub_QA",
@@ -28,7 +30,7 @@ def create_args():
         "ckpt_path": ckpt_path,
         "train_file": train_file,
         "val_file": val_file,
-        "cache_file": "{}_cache",
+        "cache_file": "{}_cache_{}",
         "random_seed": 77,
         "threads": 4,
         "version_2_with_negative": False,
@@ -48,8 +50,8 @@ def create_args():
         "model_name_or_path": "monologg/koelectra-base-v3-discriminator",
         "output_dir": "koelectra-base-v3-korquad-ckpt",
         "seed": 42,
-        "train_batch_size": 8,
-        "eval_batch_size": 8,
+        "train_batch_size": 4,
+        "eval_batch_size": 4,
         "learning_rate": 5e-5,
         "output_prediction_file": "predictions/predictions_{}.json",
         "output_nbest_file": "nbest_predictions/nbest_predictions_{}.json",
