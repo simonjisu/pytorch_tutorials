@@ -1,7 +1,7 @@
 import torch
 import pytorch_lightning as pl
 from tqdm import tqdm
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import TensorDataset, DataLoader
 from transformers import (
     ElectraForQuestionAnswering, 
     ElectraConfig, 
@@ -17,16 +17,17 @@ from transformers.data.metrics.squad_metrics import (
     squad_evaluate
 )
 
-class ConcatDataset(Dataset):
-    def __init__(self, *datasets):
-        self.datasets = datasets
+# typing
+from transformers.data.processors import SquadFeatures
+from typing import List
 
-    def __getitem__(self, i):
-        return tuple(d[i] for d in self.datasets)
+def flatten(li):
+    for ele in li:
+        if isinstance(ele, list):
+            yield from flatten(ele)
+        else:
+            yield ele
 
-    def __len__(self):
-        return min(len(d) for d in self.datasets)
-        
 class Model(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
@@ -97,21 +98,47 @@ class Model(pl.LightningModule):
                 filename=filename
             )
 
-            features, dataset = squad_convert_examples_to_features(
+            features = squad_convert_examples_to_features(
                 examples=examples,
                 tokenizer=self.tokenizer,
                 max_seq_length=self.hparams.max_seq_length,
                 doc_stride=self.hparams.doc_stride,
                 max_query_length=self.hparams.max_query_length,
                 is_training=is_training,
-                return_dataset="pt",
+                return_dataset=False,
                 threads=self.hparams.threads,
             )
             # need to fix all `example_index` and `unique_id` since splitted the dataset only on validation dataset
             self.fix_unique_id(features, state)
+            dataset = self.convert_to_tensor(state, features)
             cache = dict(dataset=dataset, examples=examples, features=features)
             torch.save(cache, processed_file)
             print(f"[INFO] cache file saved! {processed_file}")
+
+    def convert_to_tensor(self, state:str, features:List[SquadFeatures]):
+        """
+        Reference: https://github.com/huggingface/transformers/blob/master/src/transformers/data/processors/squad.py
+        Arguments:
+            state {str} -- [description]
+        """        
+        all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
+        all_attention_masks = torch.tensor([f.attention_mask for f in features], dtype=torch.long)
+        all_token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
+        
+        if state == "train":
+            all_start_positions = torch.tensor([f.start_position for f in features], dtype=torch.long)
+            all_end_positions = torch.tensor([f.end_position for f in features], dtype=torch.long)
+            dataset = TensorDataset(
+                all_input_ids, all_attention_masks, all_token_type_ids, all_start_positions, all_end_positions
+            )
+        elif state == "val":
+            all_unique_ids = torch.tensor([f.unique_id for f in features], dtype=torch.long)
+            dataset = TensorDataset(
+                all_input_ids, all_attention_masks, all_token_type_ids, all_unique_ids
+            )
+        else:
+            raise ValueError("state should be train or val")
+        return dataset
 
     def fix_unique_id(self, features:list, state:str="val"):
         if state == "val":
@@ -152,16 +179,7 @@ class Model(pl.LightningModule):
         else:
             raise ValueError("state should be train or val")
 
-        # concat_dataset = []
-        # for file in file_list:
-        #     dataset = self.load_cache(filename=file, return_dataset=True)
-        #     concat_dataset.append(dataset)
-        
         file_loader = (self.load_cache(filename=file, return_dataset=True) for file in file_list)
-        # WARNING: if use ConcatDataset, the batch size get item for each dataset
-        # concat_dataset = ConcatDataset(
-        #     (self.load_cache(filename=file, return_dataset=True) for file in file_iterator)
-        # )
         loaders = []
         self.val_dataset_length = []
         for dataset in file_loader: 
@@ -186,7 +204,7 @@ class Model(pl.LightningModule):
 
     def training_step(self, batch, batch_idx):
         batch = list(map(torch.cat, zip(*batch)))
-        inputs_ids, attention_mask, token_type_ids, start_positions, end_positions, *_ = batch
+        inputs_ids, attention_mask, token_type_ids, start_positions, end_positions = batch
 
         outputs = self(
             input_ids=inputs_ids, 
@@ -199,9 +217,9 @@ class Model(pl.LightningModule):
         loss = outputs.loss
         return  {'loss': loss}
 
-    def validation_step(self, batch, batch_idx):
-        batch = list(map(torch.cat, zip(*batch)))
-        inputs_ids, attention_mask, token_type_ids, *_ = batch
+    def validation_step(self, batch, batch_idx, dataloader_idx):
+        # batch = single dataloader batch not multiple dataloader
+        inputs_ids, attention_mask, token_type_ids, data_unique_ids = batch
         outputs = self(
             input_ids=inputs_ids, 
             attention_mask=attention_mask,
@@ -213,9 +231,11 @@ class Model(pl.LightningModule):
         # outputs.values: [(B, H), (B, H)] > batch_results: (B, 2, H)
         # B = len(datasets) * batch_size
         batch_results = []
-        for i in range(len(inputs_ids)):
+        for i, unique_id in enumerate(data_unique_ids.detach().cpu().tolist()):
             output = [self.tolist(o[i]) for o in outputs.values()]
-            batch_results.append(output)
+            start_logits, end_logits = output
+            result = SquadResult(unique_id, start_logits, end_logits)
+            batch_results.append(result)
 
         # for i, example_index in enumerate(example_indices):
         #     eval_feature = self.eval_features[example_index.item()]
@@ -236,8 +256,6 @@ class Model(pl.LightningModule):
         return {'loss': loss}
 
     def validation_epoch_end(self, outputs):
-        # outputs: [(B, 2, H)] : start_logits, end_logits list
-        # B = len(datasets) * batch_size
         if (self.all_examples == []) or (self.all_features == []):
             for file in self.val_files:
                 examples, features = self.load_cache(filename=file, return_dataset=False)
@@ -246,16 +264,20 @@ class Model(pl.LightningModule):
                 del examples
                 del features
 
-        all_results = []
-        for res in outputs:  # res: (B, 2, H)
-            start_logits, end_logits = res
-            idx = torch.arange(self.hparams.train_batch_size).repeat(len(self.val_files), 1). # len(dataset), batch_size
-            example_idx_to_add = torch.LongTensor([0] + self.val_dataset_length[:-1]).unsqueeze(1)
-            idx = (idx + example_idx_to_add).view(-1)  # B
-            for k in idx:
-                unique_id = self.all_features[k].unique_id
-                result = SquadResult(unique_id, start_logits, end_logits)
-            all_results.append(result)
+        all_results = list(flatten(outputs))
+        # TODO: See if needed?
+        # outputs: [(B, 2, H)] : start_logits, end_logits list
+        # B = len(datasets) * batch_size
+        # all_results = []
+        # for res in outputs:  # res: (B, 2, H)
+        #     start_logits, end_logits = res
+        #     idx = torch.arange(self.hparams.train_batch_size).repeat(len(self.val_files), 1)  # len(dataset), batch_size
+        #     example_idx_to_add = torch.LongTensor([0] + self.val_dataset_length[:-1]).unsqueeze(1)
+        #     idx = (idx + example_idx_to_add).view(-1)  # B
+        #     for k in idx:
+        #         unique_id = self.all_features[k].unique_id
+        #         result = SquadResult(unique_id, start_logits, end_logits)
+        #     all_results.append(result)
         
         # https://huggingface.co/transformers/_modules/transformers/data/processors/squad.html
         # TODO: Cannot find the key unique_id
@@ -276,7 +298,7 @@ class Model(pl.LightningModule):
             self.hparams.null_score_diff_threshold,
             self.tokenizer,
         )
-        results = squad_evaluate(self.eval_examples, predictions)
+        results = squad_evaluate(self.all_examples, predictions)
         accuracy = results["exact"]
         f1 = results["f1"]
         self.log("accuracy", accuracy, on_epoch=True, prog_bar=True)

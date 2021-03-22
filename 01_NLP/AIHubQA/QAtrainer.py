@@ -12,18 +12,7 @@ def create_args():
     repo_path = Path().absolute()
     data_path = repo_path.parent / "data" / "AIhub" / "QA"
     ckpt_path = repo_path.parent / "ckpt"
-    if not ckpt_path.exists():
-        ckpt_path.mkdir()
-    else:
-        if rebuild:
-            for x in ckpt_path.glob("*"):
-                if x.is_dir():
-                    x.rmdir()
-                else:
-                    x.unlink()
-            ckpt_path.rmdir()
-            ckpt_path.mkdir()
-
+    
     args_dict = {
         "task": "AIHub_QA",
         "data_path": data_path,
@@ -58,6 +47,24 @@ def create_args():
         "output_null_log_odds_file": "null_odds/null_odds_{}.json",
     }
 
+    # Path Check
+    if not ckpt_path.exists():
+        ckpt_path.mkdir()
+    else:
+        if rebuild:
+            for x in ckpt_path.glob("*"):
+                if x.is_dir():
+                    x.rmdir()
+                else:
+                    x.unlink()
+            ckpt_path.rmdir()
+            ckpt_path.mkdir()
+
+    for arg in ["output_prediction_file", "output_nbest_file", "output_null_log_odds_file"]:
+        p = args_dict["ckpt_path"] / args_dict[arg]
+        if not p.parent.exists():
+            p.mkdir(parents=True)
+
     return args_dict
 
 def main(args_dict):
@@ -79,6 +86,7 @@ def main(args_dict):
         max_epochs=args_dict["num_train_epochs"],
         deterministic=torch.cuda.is_available(),
         gpus=-1 if torch.cuda.is_available() else None,
+        num_sanity_val_steps=0
     )
     trainer.fit(model)
 
