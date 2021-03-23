@@ -39,8 +39,8 @@ def create_args():
         "model_name_or_path": "monologg/koelectra-base-v3-discriminator",
         "output_dir": "koelectra-base-v3-korquad-ckpt",
         "seed": 42,
-        "train_batch_size": 4,
-        "eval_batch_size": 4,
+        "train_batch_size": 1,
+        "eval_batch_size": 1,
         "learning_rate": 5e-5,
         "output_prediction_file": "predictions/predictions_{}.json",
         "output_nbest_file": "nbest_predictions/nbest_predictions_{}.json",
@@ -63,7 +63,7 @@ def create_args():
     for arg in ["output_prediction_file", "output_nbest_file", "output_null_log_odds_file"]:
         p = args_dict["ckpt_path"] / args_dict[arg]
         if not p.parent.exists():
-            p.mkdir(parents=True)
+            p.parent.mkdir()
 
     return args_dict
 
