@@ -5,6 +5,11 @@ from pytorch_lightning.loggers import TensorBoardLogger
 
 from QAmodel import Model
 
+# RuntimeError: Too many open files. Communication with the workers is no longer possible. 
+# Please increase the limit using `ulimit -n` in the shell or change the sharing strategy by calling 
+# `torch.multiprocessing.set_sharing_strategy('file_system')` at the beginning of your code
+torch.multiprocessing.set_sharing_strategy("file_system")
+
 def create_args():
     rebuild = False
     train_file = "train*.json"
@@ -39,7 +44,6 @@ def create_args():
         "model_type": "koelectra-base-v3",
         "model_name_or_path": "monologg/koelectra-base-v3-discriminator",
         "output_dir": "koelectra-base-v3-korquad-ckpt",
-        "seed": 42,
         "train_batch_size": 4,
         "eval_batch_size": 4,
         "learning_rate": 5e-5,

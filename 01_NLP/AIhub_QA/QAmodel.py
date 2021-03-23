@@ -44,11 +44,10 @@ class Model(pl.LightningModule):
         self.create_dataset_all(state="train")
         self.create_dataset_all(state="val")
 
-        # 
         self.all_examples, self.all_features = [], []
 
-        # function
-        self.tolist = lambda x: x.detach().cpu().tolist()
+    def to_list(self, x):
+        return x.detach().cpu().tolist()
 
     def create_dataset_all(self, state:str):
         self.example_index = 0
@@ -179,10 +178,9 @@ class Model(pl.LightningModule):
         else:
             raise ValueError("state should be train or val")
 
-        file_loader = (self.load_cache(filename=file, return_dataset=True) for file in file_list)
+        caches = [self.load_cache(filename=file, return_dataset=True) for file in file_list]
         loaders = []
-        self.val_dataset_length = []
-        for dataset in file_loader: 
+        for dataset in caches: 
             dataloader = DataLoader(
                 dataset=dataset,
                 batch_size=batch_size,
@@ -190,7 +188,6 @@ class Model(pl.LightningModule):
                 num_workers=self.hparams.threads
             )
             loaders.append(dataloader)
-            self.val_dataset_length.append(len(dataset))
         return loaders
 
     def train_dataloader(self):
@@ -231,8 +228,8 @@ class Model(pl.LightningModule):
         # outputs.values: [(B, H), (B, H)] > batch_results: (B, 2, H)
         # B = len(datasets) * batch_size
         batch_results = []
-        for i, unique_id in enumerate(data_unique_ids.detach().cpu().tolist()):
-            output = [self.tolist(o[i]) for o in outputs.values()]
+        for i, unique_id in enumerate(self.to_list(data_unique_ids)):
+            output = [self.to_list(o[i]) for o in outputs.values()]
             start_logits, end_logits = output
             result = SquadResult(unique_id, start_logits, end_logits)
             batch_results.append(result)
@@ -265,20 +262,6 @@ class Model(pl.LightningModule):
                 del features
 
         all_results = list(flatten(outputs))
-        # TODO: See if needed?
-        # outputs: [(B, 2, H)] : start_logits, end_logits list
-        # B = len(datasets) * batch_size
-        # all_results = []
-        # for res in outputs:  # res: (B, 2, H)
-        #     start_logits, end_logits = res
-        #     idx = torch.arange(self.hparams.train_batch_size).repeat(len(self.val_files), 1)  # len(dataset), batch_size
-        #     example_idx_to_add = torch.LongTensor([0] + self.val_dataset_length[:-1]).unsqueeze(1)
-        #     idx = (idx + example_idx_to_add).view(-1)  # B
-        #     for k in idx:
-        #         unique_id = self.all_features[k].unique_id
-        #         result = SquadResult(unique_id, start_logits, end_logits)
-        #     all_results.append(result)
-        
         # https://huggingface.co/transformers/_modules/transformers/data/processors/squad.html
         # TODO: Cannot find the key unique_id
         # BUG: must set argument of `trainer: num_sanity_val_steps=0` to avoid error.
