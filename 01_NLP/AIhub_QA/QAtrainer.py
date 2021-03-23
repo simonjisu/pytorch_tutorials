@@ -1,6 +1,7 @@
 from pathlib import Path
 import torch
 import pytorch_lightning as pl
+from pytorch_lightning.loggers import TensorBoardLogger
 
 from QAmodel import Model
 
@@ -14,14 +15,14 @@ def create_args():
     ckpt_path = repo_path.parent / "ckpt"
     
     args_dict = {
-        "task": "AIHub_QA",
+        "task": "AIhub_QA",
         "data_path": data_path,
         "ckpt_path": ckpt_path,
         "train_file": train_file,
         "val_file": val_file,
         "cache_file": "{}_cache_{}",
         "random_seed": 77,
-        "threads": 4,
+        "threads": 16,
         "version_2_with_negative": False,
         "null_score_diff_threshold": 0.0,
         "max_seq_length": 512,
@@ -39,8 +40,8 @@ def create_args():
         "model_name_or_path": "monologg/koelectra-base-v3-discriminator",
         "output_dir": "koelectra-base-v3-korquad-ckpt",
         "seed": 42,
-        "train_batch_size": 1,
-        "eval_batch_size": 1,
+        "train_batch_size": 4,
+        "eval_batch_size": 4,
         "learning_rate": 5e-5,
         "output_prediction_file": "predictions/predictions_{}.json",
         "output_nbest_file": "nbest_predictions/nbest_predictions_{}.json",
@@ -78,7 +79,7 @@ def main(args_dict):
     )
     pl.seed_everything(args_dict["random_seed"])
     model = Model(**args_dict)
-    
+    logger = TensorBoardLogger(str(args_dict["ckpt_path"]), name=args_dict["task"])
     print("[INFO] Start FineTuning")
     trainer = pl.Trainer(
         callbacks=[checkpoint_callback],
@@ -86,7 +87,9 @@ def main(args_dict):
         max_epochs=args_dict["num_train_epochs"],
         deterministic=torch.cuda.is_available(),
         gpus=-1 if torch.cuda.is_available() else None,
-        num_sanity_val_steps=0
+        accelerator="ddp",
+        num_sanity_val_steps=0,
+        logger=logger
     )
     trainer.fit(model)
 

@@ -120,7 +120,7 @@ class Model(pl.LightningModule):
         Reference: https://github.com/huggingface/transformers/blob/master/src/transformers/data/processors/squad.py
         Arguments:
             state {str} -- [description]
-        """        
+        """
         all_input_ids = torch.tensor([f.input_ids for f in features], dtype=torch.long)
         all_attention_masks = torch.tensor([f.attention_mask for f in features], dtype=torch.long)
         all_token_type_ids = torch.tensor([f.token_type_ids for f in features], dtype=torch.long)
