@@ -16,8 +16,8 @@ def create_args():
         "original": ModelOriginal
     }
     model_type = "original"
-    train_file = "train*.json" if model_type == "splitted" else "ko_nia_normal_squad_all.json"
-    val_file = "val*.json" if model_type == "splitted" else "ko_nia_clue0529_squad_all.json"
+    train_file = "train*.json" if model_type == "splitted" else "ko_nia_normal_squad_all_preprocessed.json" # "AIhub_squad_train_512.json"
+    val_file = "val*.json" if model_type == "splitted" else "ko_nia_clue0529_squad_all_preprocessed.json" # "AIhub_squad_val_512.json"
 
     repo_path = Path().absolute()
     data_path = repo_path.parent / "data" / "AIhub" / "QA"
@@ -32,7 +32,7 @@ def create_args():
         "val_file": val_file,
         "cache_file": "{}_cache_{}",
         "random_seed": 77,
-        "threads": 1,
+        "threads": 16,
         "version_2_with_negative": False,
         "null_score_diff_threshold": 0.0,
         "max_seq_length": 512,

@@ -84,7 +84,6 @@ class ModelOriginal(pl.LightningModule):
                 data_dir=self.hparams.data_path, 
                 filename=filename
             )
-
             features = squad_convert_examples_to_features(
                 examples=examples,
                 tokenizer=self.tokenizer,
