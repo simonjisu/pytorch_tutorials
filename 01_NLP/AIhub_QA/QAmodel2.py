@@ -10,6 +10,7 @@ from transformers import (
     squad_convert_examples_to_features,
     get_linear_schedule_with_warmup
 )
+
 from transformers.data.processors.squad import SquadResult, SquadV2Processor
 from transformers.data.metrics.squad_metrics import (
     compute_predictions_logits,
@@ -27,18 +28,18 @@ def flatten(li):
         else:
             yield ele
 
-class Model(pl.LightningModule):
+class ModelOriginal(pl.LightningModule):
     def __init__(self, **kwargs):
         super().__init__()
         self.save_hyperparameters() 
         # Create Tokenizer
         self.tokenizer = ElectraTokenizer.from_pretrained(self.hparams.model_name_or_path)
-        # create dataset and cache it
+        # Create dataset and cache it
         self.train_files = []
         self.val_files = []
         self.create_dataset_all(state="train")
         self.create_dataset_all(state="val")
-        self.all_examples, self.all_features = [], []
+        self.all_examples, self.all_features = None, None
         # Create Model
         self.config = ElectraConfig.from_pretrained(self.hparams.model_name_or_path)
         self.model = ElectraForQuestionAnswering.from_pretrained(
@@ -46,30 +47,13 @@ class Model(pl.LightningModule):
             config=self.config
         )
 
-
     def to_list(self, x):
         return x.detach().cpu().tolist()
 
     def create_dataset_all(self, state:str):
-        self.example_index = 0
-        self.unique_id = 1000000000
-        if state == "train":
-            file_str = self.hparams.train_file
-        elif state == "val":
-            file_str = self.hparams.val_file
-        else:
-            raise ValueError("state should be train or val")
-        
-        file_iter = sorted(self.hparams.data_path.glob(file_str), key=lambda x: int(x.name.strip(".json").split("_")[-1]))
-        for path in file_iter:
-            filename = path.name
-            idx = int(filename.strip(".json").split("_")[-1])
-            self.create_dataset(path.name, idx, state)
-
-    def create_dataset(self, filename:str, idx:int, state:str):
-        cache_file = self.hparams.cache_file.format(state, idx)
-        print(f"[INFO] Processing: {filename} | Cache file name: {cache_file}")
+        cache_file = self.hparams.cache_file.format(state, "all")
         processed_file = self.hparams.ckpt_path / cache_file
+
         if processed_file.exists():
             print(f"[INFO] cache file already exists! passing the procedure")
             print(f"[INFO] Path: {processed_file}")
@@ -83,16 +67,19 @@ class Model(pl.LightningModule):
         else:
             processor = SquadV2Processor()
             if state == "train":
+                filename = self.hparams.train_file
                 process_fn = processor.get_train_examples
                 is_training = True
                 self.train_files.append(cache_file)
             elif state == "val":
+                filename = self.hparams.val_file
                 process_fn = processor.get_dev_examples
                 is_training = False
                 self.val_files.append(cache_file)
             else:
                 raise ValueError("state should be train or val")
-
+            
+            print(f"[INFO] Processing: {filename} | Cache file name: {cache_file}")
             examples = process_fn(
                 data_dir=self.hparams.data_path, 
                 filename=filename
@@ -108,8 +95,6 @@ class Model(pl.LightningModule):
                 return_dataset=False,
                 threads=self.hparams.threads,
             )
-            # need to fix all `example_index` and `unique_id` since splitted the dataset only on validation dataset
-            self.fix_unique_id(features, state)
             dataset = self.convert_to_tensor(state, features)
             cache = dict(dataset=dataset, examples=examples, features=features)
             torch.save(cache, processed_file)
@@ -140,23 +125,6 @@ class Model(pl.LightningModule):
             raise ValueError("state should be train or val")
         return dataset
 
-    def fix_unique_id(self, features:list, state:str="val"):
-        if state == "val":
-            previous_example_index = -1 
-            for fea in tqdm(features, total=len(features), desc="fixing index and ids"):
-                fea.unique_id = self.unique_id
-                self.unique_id += 1
-                
-                current_example_index = fea.example_index
-                if previous_example_index == current_example_index:
-                    fea.example_index = previous_example_index
-                else:
-                    previous_example_index = fea.example_index
-                    fea.example_index = self.example_index
-                    self.example_index += 1
-        else:
-            return None
-
     def load_cache(self, filename:str, return_dataset:bool=True):
         processed_file = self.hparams.ckpt_path / filename
         cache = torch.load(processed_file)
@@ -171,25 +139,22 @@ class Model(pl.LightningModule):
         if state == "train":
             shuffle = True
             batch_size = self.hparams.train_batch_size
-            file_list = self.train_files
+            filename = self.train_files[0]
         elif state == "val":
             shuffle = False
             batch_size = self.hparams.eval_batch_size
-            file_list = self.val_files
+            filename = self.val_files[0]
         else:
             raise ValueError("state should be train or val")
 
-        caches = [self.load_cache(filename=file, return_dataset=True) for file in file_list]
-        loaders = []
-        for dataset in caches: 
-            dataloader = DataLoader(
-                dataset=dataset,
-                batch_size=batch_size,
-                shuffle=shuffle,
-                num_workers=self.hparams.threads
-            )
-            loaders.append(dataloader)
-        return loaders
+        dataset = self.load_cache(filename=filename, return_dataset=True)
+        dataloader = DataLoader(
+            dataset=dataset,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=self.hparams.threads
+        )
+        return dataloader
 
     def train_dataloader(self):
         return self.create_dataloader(state="train")
@@ -201,7 +166,6 @@ class Model(pl.LightningModule):
         return self.model(**kwargs)
 
     def training_step(self, batch, batch_idx):
-        batch = list(map(torch.cat, zip(*batch)))
         inputs_ids, attention_mask, token_type_ids, start_positions, end_positions = batch
 
         outputs = self(
@@ -254,13 +218,12 @@ class Model(pl.LightningModule):
         return {'loss': loss}
 
     def validation_epoch_end(self, outputs):
-        if (self.all_examples == []) or (self.all_features == []):
-            for file in self.val_files:
-                examples, features = self.load_cache(filename=file, return_dataset=False)
-                self.all_examples.extend(examples)
-                self.all_features.extend(features)
-                del examples
-                del features
+        if (self.all_examples is None) or (self.all_features is None):
+            examples, features = self.load_cache(filename=self.val_files[0], return_dataset=False)
+            self.all_examples= examples
+            self.all_features= features
+            del examples
+            del features
 
         all_results = list(flatten(outputs))
         # https://huggingface.co/transformers/_modules/transformers/data/processors/squad.html
@@ -285,7 +248,7 @@ class Model(pl.LightningModule):
         results = squad_evaluate(self.all_examples, predictions)
         accuracy = results["exact"]
         f1 = results["f1"]
-        self.log("val_accuracy", accuracy, on_epoch=True, prog_bar=True)
+        self.log("val_acc", accuracy, on_epoch=True, prog_bar=True)
         self.log("val_f1", f1, on_epoch=True, prog_bar=True)
         # return {"val_acc": accuracy, "val_f1": f1}
 
